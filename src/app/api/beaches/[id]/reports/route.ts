@@ -28,7 +28,8 @@ export async function POST(
 
   if (!condition) return NextResponse.json({ error: 'condition is required' }, { status: 400 })
 
-  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createClient()) as any
   const { data, error } = await supabase
     .from('reports')
     .insert({ beach_id: id, condition, note: note || null, photo_url: photo_url || null })
@@ -38,7 +39,8 @@ export async function POST(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Recompute beach condition using service role (bypasses RLS)
-  const admin = createServiceClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createServiceClient() as any
   const { data: condData } = await admin.rpc('derive_condition', { p_beach_id: id })
   if (condData) {
     await admin
