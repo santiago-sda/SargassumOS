@@ -12,8 +12,8 @@ function todayStr() {
   return d.toISOString().slice(0, 10).replace(/-/g, '')
 }
 
-function yesterdayStr() {
-  const d = new Date(Date.now() - 86400000)
+function daysAgoStr(n: number) {
+  const d = new Date(Date.now() - n * 86400000)
   return d.toISOString().slice(0, 10).replace(/-/g, '')
 }
 
@@ -92,6 +92,8 @@ function kmlToGeoJson(kmlText: string): object {
   return { type: 'FeatureCollection', features }
 }
 
+export const maxDuration = 30
+
 export async function GET() {
   const today = todayStr()
   if (cached && cached.date === today) {
@@ -100,8 +102,12 @@ export async function GET() {
     })
   }
 
-  let kmzBuffer = await fetchKmz(today)
-  if (!kmzBuffer) kmzBuffer = await fetchKmz(yesterdayStr())
+  let kmzBuffer: Buffer | null = null
+  for (let i = 0; i <= 3; i++) {
+    const dateStr = i === 0 ? today : daysAgoStr(i)
+    kmzBuffer = await fetchKmz(dateStr)
+    if (kmzBuffer) break
+  }
   if (!kmzBuffer) {
     return NextResponse.json({ error: 'NOAA data unavailable' }, { status: 503 })
   }
