@@ -25,21 +25,78 @@ function timeAgo(date: string | null) {
 
 function makeEl(color: string) {
   const el = document.createElement('div')
-  el.style.cssText = `width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;`
+  el.style.cssText = `width:18px;height:18px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);cursor:pointer;`
   return el
 }
+
+// Returns the compass bearing (degrees) that sargassum approaches FROM for a given beach.
+// 0=N, 90=E, 180=S, 270=W
+function getOceanBearing(beach: Beach): number {
+  const { lat, lng, name } = beach
+  // Florida east coast (Atlantic-facing) → sargassum from east
+  if (lng > -81 && lat > 24) return 90
+  // Yucatan / Mexico Caribbean coast → northeast
+  if (lng > -88 && lng < -85 && lat < 22) return 45
+  // Cuba north coast → north
+  if (name.toLowerCase().includes('havana') || (lat > 22 && lng > -84 && lng < -74)) return 0
+  // Lesser Antilles (Martinique, Guadeloupe, Barbados, etc.) → east/northeast
+  if (lng > -63) return 70
+  // Dominican Republic / Puerto Rico → north/northeast
+  if (lng > -72 && lat > 17) return 30
+  // Jamaica → south (Atlantic sargassum wraps south)
+  if (lat < 19 && lng > -78 && lng < -76) return 180
+  // Default: sargassum primarily arrives from the east
+  return 90
+}
+
+// Wind direction (met) = where wind comes FROM.
+// Returns degrees 0-360 of where wind is GOING (for arrow display).
+function windGoingDeg(windFromDeg: number): number {
+  return (windFromDeg + 180) % 360
+}
+
+function directionArrow(windFromDeg: number): string {
+  const going = windGoingDeg(windFromDeg)
+  if (going >= 337.5 || going < 22.5) return '↑'
+  if (going < 67.5) return '↗'
+  if (going < 112.5) return '→'
+  if (going < 157.5) return '↘'
+  if (going < 202.5) return '↓'
+  if (going < 247.5) return '↙'
+  if (going < 292.5) return '←'
+  return '↖'
+}
+
+// Angle difference between two bearings (0–180)
+function angleDiff(a: number, b: number): number {
+  return Math.abs(((a - b + 180 + 360) % 360) - 180)
+}
+
+function windMessage(windFromDeg: number, oceanBearing: number): { text: string; color: string } {
+  const diff = angleDiff(windFromDeg, oceanBearing)
+  // Wind FROM ocean bearing = blowing toward beach
+  if (diff < 60) return { text: 'Wind is pushing sargassum toward this beach', color: '#dc2626' }
+  if (diff > 120) return { text: 'Wind is pushing sargassum away from this beach', color: '#16a34a' }
+  return { text: 'Wind is blowing parallel to the shore', color: '#d97706' }
+}
+
+interface WindData { speed: number; direction: number }
 
 interface PopupProps {
   beach: Beach
   pos: { x: number; y: number }
+  wind: WindData | null
+  windLoading: boolean
   onReport: () => void
   onClose: () => void
 }
 
-function BeachPopup({ beach, pos, onReport, onClose }: PopupProps) {
+function BeachPopup({ beach, pos, wind, windLoading, onReport, onClose }: PopupProps) {
   const color = CONDITION_COLOR[beach.current_condition] ?? CONDITION_COLOR.unknown
   const label = CONDITION_LABEL[beach.current_condition] ?? 'Unknown'
   const ago = timeAgo(beach.last_updated)
+  const oceanBearing = getOceanBearing(beach)
+  const msg = wind ? windMessage(wind.direction, oceanBearing) : null
 
   return (
     <div
@@ -50,7 +107,7 @@ function BeachPopup({ beach, pos, onReport, onClose }: PopupProps) {
         transform: 'translate(-50%, calc(-100% - 18px))',
         zIndex: 50,
         pointerEvents: 'auto',
-        minWidth: 240,
+        minWidth: 250,
       }}
     >
       <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', padding: '16px 16px 14px', position: 'relative' }}>
@@ -72,8 +129,18 @@ function BeachPopup({ beach, pos, onReport, onClose }: PopupProps) {
           <span style={{ fontWeight: 600, fontSize: 14, color }}>{label}</span>
         </div>
 
+        {/* Satellite attribution */}
+        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>
+          Sargassum risk based on NOAA AOML satellite data
+        </div>
+        {beach.last_updated && (
+          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+            Satellite data from {new Date(beach.last_updated).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </div>
+        )}
+
         {/* Meta */}
-        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8, display: 'flex', gap: 10 }}>
+        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6, display: 'flex', gap: 10 }}>
           {beach.report_count > 0 && (
             <span>📋 {beach.report_count} report{beach.report_count !== 1 ? 's' : ''}</span>
           )}
@@ -81,7 +148,30 @@ function BeachPopup({ beach, pos, onReport, onClose }: PopupProps) {
           {!beach.last_updated && <span>No reports yet — be the first!</span>}
         </div>
 
-        {/* Report button */}
+        {/* Wind */}
+        <div style={{ marginTop: 10, padding: '8px 10px', background: '#f9fafb', borderRadius: 8 }}>
+          {windLoading && (
+            <div style={{ fontSize: 12, color: '#9ca3af' }}>Loading wind data…</div>
+          )}
+          {!windLoading && wind && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                <span style={{ fontSize: 18 }}>{directionArrow(wind.direction)}</span>
+                <span>{wind.speed} km/h</span>
+              </div>
+              {msg && (
+                <div style={{ fontSize: 12, color: msg.color, fontWeight: 500, marginTop: 4 }}>
+                  {msg.text}
+                </div>
+              )}
+            </>
+          )}
+          {!windLoading && !wind && (
+            <div style={{ fontSize: 12, color: '#9ca3af' }}>Wind data unavailable</div>
+          )}
+        </div>
+
+        {/* Button */}
         <button
           onClick={onReport}
           style={{
@@ -100,9 +190,32 @@ function BeachPopup({ beach, pos, onReport, onClose }: PopupProps) {
           onMouseEnter={e => (e.currentTarget.style.background = '#374151')}
           onMouseLeave={e => (e.currentTarget.style.background = '#111827')}
         >
-          {beach.report_count > 0 ? 'Open Details' : 'Report this beach'}
+          {beach.webcam_snapshot_url || beach.report_count > 0 ? 'Open Details' : 'Report this beach'}
         </button>
       </div>
+    </div>
+  )
+}
+
+function ZoomControls({ mapRef }: { mapRef: React.MutableRefObject<any> }) {
+  function zoom(delta: number) {
+    mapRef.current?.easeTo({ zoom: (mapRef.current.getZoom() ?? 5) + delta, duration: 200 })
+  }
+  const btn: React.CSSProperties = {
+    width: 36, height: 36, background: '#fff', border: 'none', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 20, color: '#374151', lineHeight: 1,
+  }
+  return (
+    <div style={{
+      position: 'absolute', bottom: 32, right: 12, zIndex: 10,
+      display: 'flex', flexDirection: 'column',
+      borderRadius: 8, overflow: 'hidden',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+    }}>
+      <button style={btn} onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')} onMouseLeave={e => (e.currentTarget.style.background = '#fff')} onClick={() => zoom(1)}>+</button>
+      <div style={{ height: 1, background: '#e5e7eb' }} />
+      <button style={btn} onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')} onMouseLeave={e => (e.currentTarget.style.background = '#fff')} onClick={() => zoom(-1)}>−</button>
     </div>
   )
 }
@@ -123,8 +236,34 @@ export default function MapView({ beaches, filter, onSelectBeach, flyToRef, show
   const markersRef = useRef<any[]>([])
   const [popupBeach, setPopupBeach] = useState<Beach | null>(null)
   const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null)
+  const [wind, setWind] = useState<WindData | null>(null)
+  const [windLoading, setWindLoading] = useState(false)
 
-  // Project lngLat to screen coords
+  // Fetch wind when popup beach changes, then refresh every 15 minutes
+  useEffect(() => {
+    if (!popupBeach) { setWind(null); return }
+    let cancelled = false
+
+    async function fetchWind() {
+      try {
+        const { lat, lng } = popupBeach!
+        const res = await fetch(`/api/wind?lat=${lat}&lng=${lng}`)
+        const data = res.ok ? await res.json() : null
+        if (!cancelled) { setWind(data?.speed != null ? data : null); setWindLoading(false) }
+      } catch (err) {
+        console.warn('[Wind] fetch failed:', err)
+        if (!cancelled) setWindLoading(false)
+      }
+    }
+
+    setWind(null)
+    setWindLoading(true)
+    fetchWind()
+
+    const interval = setInterval(fetchWind, 15 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [popupBeach?.id])
+
   const projectPopup = useCallback((beach: Beach) => {
     const map = mapRef.current
     if (!map) return
@@ -132,7 +271,6 @@ export default function MapView({ beaches, filter, onSelectBeach, flyToRef, show
     setPopupPos({ x: p.x, y: p.y })
   }, [])
 
-  // Update popup position on map move
   useEffect(() => {
     const map = mapRef.current
     if (!map || !popupBeach) return
@@ -163,10 +301,11 @@ export default function MapView({ beaches, filter, onSelectBeach, flyToRef, show
         pitchWithRotate: false,
       })
       map.touchZoomRotate.disableRotation()
+      map.scrollZoom.setWheelZoomRate(1 / 600)
+      map.scrollZoom.setZoomRate(1 / 100)
 
       map.on('error', (e: any) => console.error('[MapView] error:', e))
       map.on('load', () => map.resize())
-      // Close popup on map click
       map.on('click', () => setPopupBeach(null))
       mapRef.current = map
     })()
@@ -262,9 +401,9 @@ export default function MapView({ beaches, filter, onSelectBeach, flyToRef, show
               'line-width': 3,
               'line-color': [
                 'match', ['get', 'risk'],
-                1, '#facc15',   // warning → yellow
-                2, '#f97316',   // medium  → orange
-                3, '#dc2626',   // high    → red
+                1, '#facc15',
+                2, '#f97316',
+                3, '#dc2626',
                 '#9ca3af',
               ],
               'line-opacity': 0.9,
@@ -276,11 +415,7 @@ export default function MapView({ beaches, filter, onSelectBeach, flyToRef, show
       }
     }
 
-    if (map.isStyleLoaded()) {
-      addLayer()
-    } else {
-      map.once('load', addLayer)
-    }
+    if (map.isStyleLoaded()) { addLayer() } else { map.once('load', addLayer) }
 
     return () => {
       if (mapRef.current?.isStyleLoaded()) removeLayer()
@@ -298,10 +433,13 @@ export default function MapView({ beaches, filter, onSelectBeach, flyToRef, show
   return (
     <>
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+      <ZoomControls mapRef={mapRef} />
       {popupBeach && popupPos && (
         <BeachPopup
           beach={popupBeach}
           pos={popupPos}
+          wind={wind}
+          windLoading={windLoading}
           onClose={() => setPopupBeach(null)}
           onReport={() => {
             onSelectBeach(popupBeach)
