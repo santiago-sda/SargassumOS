@@ -112,7 +112,11 @@ export default function DetailPanel({ beach, onClose, onReport }: Props) {
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Recent Reports</h3>
               {loading && <p className="text-sm text-gray-400">Loading…</p>}
               {!loading && reports.length === 0 && (
-                <p className="text-sm text-gray-400">No reports yet. Be the first!</p>
+                <p className="text-sm text-gray-400">
+                  {beach.webcam_snapshot_url
+                    ? 'Condition based on AI detection — add your own observation below.'
+                    : 'No reports yet. Be the first!'}
+                </p>
               )}
               {reports.map(r => <ReportCard key={r.id} report={r} />)}
             </>
