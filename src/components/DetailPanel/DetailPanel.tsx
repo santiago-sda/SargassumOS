@@ -4,6 +4,7 @@ import type { Beach, Report } from '@/types'
 import ConditionBadge from './ConditionBadge'
 import ReportCard from './ReportCard'
 import ReportForm from './ReportForm'
+import BeachCharts from './BeachCharts'
 
 interface Props {
   beach: Beach | null
@@ -85,6 +86,29 @@ export default function DetailPanel({ beach, onClose, onReport }: Props) {
             />
           ) : (
             <>
+              {/* AI Webcam Snapshot */}
+              {beach.webcam_snapshot_url && (
+                <div className="mb-4">
+                  <div className="relative rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '16/9' }}>
+                    <img
+                      src={beach.webcam_snapshot_url}
+                      alt={`${beach.name} sargassum detection`}
+                      className="w-full h-full object-cover"
+                    />
+                    {beach.sargassum_coverage !== null && (
+                      <div className="absolute top-2 left-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+                        {beach.sargassum_coverage.toFixed(1)}% coverage · {beach.detection_patches} patches
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                      🤖 AI Detection · {timeAgo(beach.detection_updated_at)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <BeachCharts reports={reports} />
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Recent Reports</h3>
               {loading && <p className="text-sm text-gray-400">Loading…</p>}
               {!loading && reports.length === 0 && (

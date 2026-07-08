@@ -5,7 +5,7 @@ export async function GET() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('beaches')
-    .select('id, name, lat, lng, country, current_condition, satellite_condition, last_updated, reports(count)')
+    .select('id, name, lat, lng, country, current_condition, satellite_condition, last_updated, webcam_url, webcam_snapshot_url, sargassum_coverage, detection_patches, detection_updated_at, reports(count)')
     .order('name')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
