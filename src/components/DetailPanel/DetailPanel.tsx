@@ -25,6 +25,7 @@ export default function DetailPanel({ beach, onClose, onReport }: Props) {
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [lightbox, setLightbox] = useState<string | null>(null)
 
   const loadReports = useCallback(async (id: string) => {
     setLoading(true)
@@ -59,6 +60,17 @@ export default function DetailPanel({ beach, onClose, onReport }: Props) {
 
   return (
     <>
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
+          <img src={lightbox} alt="AI Detection full size" className="max-w-full max-h-full rounded-xl" />
+          <button className="absolute top-4 right-4 text-white text-3xl leading-none">×</button>
+        </div>
+      )}
+
       <div className="absolute inset-0 z-20 md:hidden" onClick={onClose} />
 
       <div className="absolute bottom-0 left-0 right-0 md:bottom-auto md:top-0 md:left-auto md:right-0 md:h-full md:w-96 z-30 bg-white shadow-2xl rounded-t-2xl md:rounded-none flex flex-col max-h-[80vh] md:max-h-full">
@@ -93,7 +105,8 @@ export default function DetailPanel({ beach, onClose, onReport }: Props) {
                     <img
                       src={beach.webcam_snapshot_url}
                       alt={`${beach.name} sargassum detection`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover cursor-zoom-in"
+                      onClick={() => setLightbox(beach.webcam_snapshot_url!)}
                     />
                     {beach.sargassum_coverage !== null && (
                       <div className="absolute top-2 left-2 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1.5">
